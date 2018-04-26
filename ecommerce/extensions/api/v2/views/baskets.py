@@ -344,10 +344,10 @@ class BasketCalculateView(generics.GenericAPIView):
 
     def _calculate_temporary_basket(self, user, request, products, voucher, skus, code):
         response = None
-        try:
-            # We wrap this in an atomic operation so we never commit this to the db.
-            # This is to avoid merging this temporary basket with a real user basket.
-            with transaction.atomic():
+        basket = None
+
+        if waffle.switch_is_active("wip_drop_temporary_basket_atomic_transaction"):  # pragma: no cover
+            try:
                 basket = Basket(owner=user, site=request.site)
                 basket.strategy = Selector().strategy(user=user)
 
@@ -371,15 +371,55 @@ class BasketCalculateView(generics.GenericAPIView):
                     'total_incl_tax': basket.total_incl_tax,
                     'currency': basket.currency
                 }
-                raise api_exceptions.TemporaryBasketException
-        except api_exceptions.TemporaryBasketException:
-            pass
-        except:  # pylint: disable=bare-except
-            logger.exception(
-                'Failed to calculate basket discount for SKUs [%s] and voucher [%s].',
-                skus, code
-            )
-            raise
+            except:  # pylint: disable=bare-except
+                logger.exception(
+                    'Failed to calculate basket discount for SKUs [%s] and voucher [%s].',
+                    skus, code
+                )
+                # IMPORTANT: WIP: I don't know if this raise inside an except will skip the finally.  If so, we probably want
+                # to track this error and raise the exception later.
+                raise
+            finally:
+                if basket:
+                    basket.delete()
+        else:
+            try:
+                # We wrap this in an atomic operation so we never commit this to the db.
+                # This is to avoid merging this temporary basket with a real user basket.
+                with transaction.atomic():
+                    basket = Basket(owner=user, site=request.site)
+                    basket.strategy = Selector().strategy(user=user)
+
+                    for product in products:
+                        basket.add_product(product, 1)
+
+                    if voucher:
+                        basket.vouchers.add(voucher)
+
+                    # Calculate any discounts on the basket.
+                    Applicator().apply(basket, user=user, request=request)
+
+                    discounts = []
+                    if basket.offer_discounts:
+                        discounts = basket.offer_discounts
+                    if basket.voucher_discounts:
+                        discounts.extend(basket.voucher_discounts)
+
+                    response = {
+                        'total_incl_tax_excl_discounts': basket.total_incl_tax_excl_discounts,
+                        'total_incl_tax': basket.total_incl_tax,
+                        'currency': basket.currency
+                    }
+                    raise api_exceptions.TemporaryBasketException
+            except api_exceptions.TemporaryBasketException:
+                pass
+            except:  # pylint: disable=bare-except
+                logger.exception(
+                    'Failed to calculate basket discount for SKUs [%s] and voucher [%s].',
+                    skus, code
+                )
+                raise
+
         return response
 
     def get(self, request):
