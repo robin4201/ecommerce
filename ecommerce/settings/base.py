@@ -231,6 +231,7 @@ MIDDLEWARE_CLASSES = (
     'threadlocals.middleware.ThreadLocalMiddleware',
     'ecommerce.theming.middleware.CurrentSiteThemeMiddleware',
     'ecommerce.theming.middleware.ThemePreviewMiddleware',
+    'pyinstrument.middleware.ProfilerMiddleware',
 )
 # END MIDDLEWARE CONFIGURATION
 
