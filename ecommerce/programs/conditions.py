@@ -5,7 +5,7 @@ import operator
 
 import waffle
 from django.conf import settings
-from django.core import cache
+from django.core.cache import cache
 from oscar.apps.offer import utils as oscar_utils
 from oscar.core.loading import get_model
 from requests.exceptions import ConnectionError, Timeout
