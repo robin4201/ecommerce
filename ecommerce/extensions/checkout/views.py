@@ -240,7 +240,7 @@ class ReceiptResponseView(ThankYouView):
 
     def get_order_verification_context(self, order):
         context = {}
-        user_verification_required = None
+        user_verification_required = False
         request = self.request
         site = request.site
 
@@ -250,7 +250,9 @@ class ReceiptResponseView(ThankYouView):
                 product = line.product
 
                 if not user_verification_required and getattr(product.attr, 'id_verification_required', False):
-                    user_verification_required = True
+                    if (getattr(product.attr, 'course_key', None) is not None or
+                            getattr(product.attr, 'UUID', None) is not None):
+                        user_verification_required = True
 
             if user_verification_required:
                 context.update({
