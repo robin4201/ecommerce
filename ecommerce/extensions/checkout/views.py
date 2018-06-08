@@ -240,7 +240,7 @@ class ReceiptResponseView(ThankYouView):
 
     def get_order_verification_context(self, order):
         context = {}
-        verified_course_id = None
+        user_verification_required = None
         request = self.request
         site = request.site
 
@@ -249,10 +249,10 @@ class ReceiptResponseView(ThankYouView):
             for line in order.lines.all():
                 product = line.product
 
-                if not verified_course_id and getattr(product.attr, 'id_verification_required', False):
-                    verified_course_id = product.attr.course_key
+                if not user_verification_required and getattr(product.attr, 'id_verification_required', False):
+                    user_verification_required = True
 
-            if verified_course_id:
+            if user_verification_required:
                 context.update({
                     'verification_url': site.siteconfiguration.build_lms_url('verify_student/reverify'),
                     'user_verified': request.user.is_verified(site),
